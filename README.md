@@ -1,36 +1,78 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Hero AI ⚡
 
-## Getting Started
+Klien obrolan AI modern berbasis **Next.js (App Router)** dan **TypeScript**, siap dideploy langsung ke **Vercel** dengan UI ergonomis bergaya developer tools, bebas dari "AI slop", dan dilengkapi tema **Dracula VS Code**.
 
-First, run the development server:
+---
+
+## ✨ Fitur Utama
+
+- 🎨 **Tema Dracula VS Code & Light Mode**:
+  - **Dark Mode**: Menggunakan palet warna asli **Dracula Theme VS Code** (`#282a36`, `#21222c`, `#44475a`, `#6272a4`, `#8be9fd`, `#50fa7b`, `#ff79c6`, `#bd93f9`).
+  - **Light Mode**: Tampilan bersih, minimalis, dan kontras tinggi.
+  - Beralih tema dengan 1 tombol di pojok bawah sidebar (tersimpan otomatis).
+- 💬 **Riwayat Obrolan & Auto-Save**:
+  - Percakapan disimpan **otomatis** ke `localStorage` tanpa perlu klik tombol simpan manual.
+  - **Sidebar di sebelah kiri layar**:
+    - Tombol `+ Percakapan Baru`
+    - Daftar obrolan berurutan dengan judul otomatis dari pertanyaan pertama
+    - Fitur **Rename (ubah judul)** dan **Hapus percakapan**
+    - Pencarian riwayat percakapan
+    - Responsif (bisa di-collapse di desktop & drawer slide-over di mobile).
+- 🧼 **Tampilan Balasan AI Rapi (Anti "AI Slop")**:
+  - Tidak ada divider `----` atau garis kasar yang bocor.
+  - Pemisah teks dirender menjadi hairline divider tipis yang halus.
+  - **Code Block** dilengkapi header bahasa pemrograman, syntax highlighting, dan tombol **Salin Kode** interaktif.
+  - Typography markdown rapi (tabel, list, blockquote, inline code).
+- 🖼️ **Vision & Paste Screenshot Langsung (Ctrl+V)**:
+  - Cukup tekan `Ctrl + V` untuk menempelkan screenshot gambar langsung ke input chat.
+  - Dukungan drag-and-drop file dan picker attachment (gambar dikirim dalam format OpenAI Vision).
+- 🔄 **Next.js Streaming CORS Proxy (`/api/proxy`)**:
+  - Route handler built-in Next.js untuk mem-bypass CORS ke endpoint OpenAI / 9router.
+  - Mendukung Server-Sent Events (SSE) streaming real-time tanpa delay.
+- 🧠 **Memori AI Jangka Panjang (Long-Term Memory)**:
+  - Instruksi preferensi user yang selalu diinjeksi ke system prompt agar AI selalu mengingat gaya jawaban favorit Anda.
+- 💾 **Export & Import JSON**:
+  - Backup seluruh percakapan dan memori ke file `.json`, dan restore kapan saja.
+
+---
+
+## 🚀 Menjalankan Secara Lokal
 
 ```bash
+# 1. Masuk ke direktori project
+cd "d:/Project/Hero AI"
+
+# 2. Jalankan mode pengembangan
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+
+# 3. Atau build untuk production
+npm run build
+npm run start
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Buka browser di [http://localhost:3000](http://localhost:3000).
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+---
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+## ☁️ Deploy ke Vercel
 
-## Learn More
+Aplikasi ini sudah 100% kompatibel dengan **Vercel**:
 
-To learn more about Next.js, take a look at the following resources:
+1. Push repository ini ke GitHub / GitLab.
+2. Buka dashboard [Vercel](https://vercel.com) dan klik **Add New Project**.
+3. Import repository Hero AI.
+4. Framework Preset akan otomatis terdeteksi sebagai **Next.js**.
+5. Klik **Deploy**. Tidak ada environment variable wajib yang perlu diisi karena semua konfigurasi Base URL & API Key dapat diatur langsung di UI browser.
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+---
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+## 🛠️ Pengaturan Kredensial
 
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+Klik menu **Pengaturan** di kanan atas atau kiri bawah sidebar untuk:
+- Mengatur **Base URL** (default: `https://hero-ai.zero-hero.biz.id/v1`)
+- Memasukkan **API Key**
+- Menguji status koneksi dengan tombol **Test Connection**
+- Mengambil daftar model otomatis dari endpoint via tombol **Ambil dari API**
+- Mengatur **Temperature**, **Streaming**, dan **System Prompt**
+- Menulis **Catatan Memori Jangka Panjang**
+- Melakukan **Export / Import JSON**

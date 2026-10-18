@@ -1,26 +1,278 @@
 @import "tailwindcss";
 
-:root {
-  --background: #ffffff;
-  --foreground: #171717;
-}
-
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
-}
-
-@media (prefers-color-scheme: dark) {
+@layer base {
   :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
+    --bg-app: #f8fafc;
+    --bg-sidebar: #ffffff;
+    --bg-surface: #ffffff;
+    --bg-surface-hover: #f1f5f9;
+    --bg-surface-active: #e2e8f0;
+    --bg-input: #ffffff;
+    --border-color: #e2e8f0;
+    --border-subtle: #f1f5f9;
+    --text-primary: #0f172a;
+    --text-secondary: #475569;
+    --text-muted: #94a3b8;
+    --accent: #7c3aed;
+    --accent-hover: #6d28d9;
+    --accent-text: #ffffff;
+    --accent-cyan: #0284c7;
+    --accent-pink: #db2777;
+    --accent-green: #16a34a;
+    --accent-orange: #ea580c;
+    --accent-red: #ef4444;
+    --code-bg: #f8fafc;
+    --code-border: #e2e8f0;
+    --code-header: #f1f5f9;
+    --user-msg-bg: #f1f5f9;
+    --user-bubble-bg: #f1f5f9;
+    --user-bubble-border: #e2e8f0;
+    --user-bubble-text: #0f172a;
+    --scrollbar-thumb: rgba(148, 163, 184, 0.35);
+    --scrollbar-thumb-hover: rgba(148, 163, 184, 0.6);
+  }
+
+  .dark {
+    /* Authentic VS Code Dracula Theme */
+    --bg-app: #282a36;
+    --bg-sidebar: #21222c;
+    --bg-surface: #282a36;
+    --bg-surface-hover: #343746;
+    --bg-surface-active: #44475a;
+    --bg-input: #21222c;
+    --border-color: #44475a;
+    --border-subtle: #343746;
+    --text-primary: #f8f8f2;
+    --text-secondary: #bd93f9;
+    --text-muted: #6272a4;
+    --accent: #bd93f9;
+    --accent-hover: #caa7fa;
+    --accent-text: #21222c;
+    --accent-cyan: #8be9fd;
+    --accent-pink: #ff79c6;
+    --accent-green: #50fa7b;
+    --accent-orange: #ffb86c;
+    --accent-red: #ff5555;
+    --code-bg: #1e1f29;
+    --code-border: #44475a;
+    --code-header: #21222c;
+    --user-msg-bg: #343746;
+    --user-bubble-bg: #44475a;
+    --user-bubble-border: #6272a4;
+    --user-bubble-text: #f8f8f2;
+    --scrollbar-thumb: rgba(98, 114, 164, 0.4);
+    --scrollbar-thumb-hover: rgba(98, 114, 164, 0.7);
   }
 }
 
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  background-color: var(--bg-app);
+  color: var(--text-primary);
+  font-family: var(--font-geist-sans), -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  overflow: hidden;
+  height: 100vh;
+}
+
+/* Custom Scrollbar */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--scrollbar-thumb);
+  border-radius: 9999px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--scrollbar-thumb-hover);
+}
+
+/* Refined Markdown Formatting for AI Messages (No AI slop, no ugly ----) */
+.markdown-body {
+  font-size: 0.925rem;
+  line-height: 1.65;
+  color: var(--text-primary);
+  word-break: break-word;
+}
+
+.markdown-body p {
+  margin-bottom: 0.85rem;
+}
+
+.markdown-body p:last-child {
+  margin-bottom: 0;
+}
+
+.markdown-body h1,
+.markdown-body h2,
+.markdown-body h3,
+.markdown-body h4 {
+  font-weight: 600;
+  margin-top: 1.25rem;
+  margin-bottom: 0.5rem;
+  line-height: 1.3;
+}
+
+.markdown-body h1 {
+  font-size: 1.35rem;
+  color: var(--text-primary);
+}
+
+.markdown-body h2 {
+  font-size: 1.15rem;
+  color: var(--accent-cyan);
+}
+
+.markdown-body h3 {
+  font-size: 1.05rem;
+  color: var(--accent-pink);
+}
+
+/* Hairline ultra-clean divider replacing raw/ugly ---- */
+.markdown-body hr {
+  border: none;
+  border-top: 1px solid var(--border-color);
+  opacity: 0.45;
+  margin: 1.25rem 0;
+}
+
+.markdown-body ul {
+  list-style-type: disc;
+  padding-left: 1.35rem;
+  margin-bottom: 0.85rem;
+  space-y: 0.25rem;
+}
+
+.markdown-body ol {
+  list-style-type: decimal;
+  padding-left: 1.35rem;
+  margin-bottom: 0.85rem;
+}
+
+.markdown-body li {
+  margin-bottom: 0.25rem;
+}
+
+.markdown-body blockquote {
+  border-left: 3px solid var(--accent);
+  padding: 0.35rem 0 0.35rem 0.85rem;
+  margin: 0.85rem 0;
+  color: var(--text-muted);
+  font-style: italic;
+  background: var(--bg-surface-hover);
+  border-radius: 0 0.375rem 0.375rem 0;
+}
+
+.markdown-body table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 1rem 0;
+  font-size: 0.85rem;
+  overflow-x: auto;
+  display: block;
+}
+
+.markdown-body th {
+  background-color: var(--bg-surface-active);
+  font-weight: 600;
+  padding: 0.5rem 0.75rem;
+  border: 1px solid var(--border-color);
+  text-align: left;
+}
+
+.markdown-body td {
+  padding: 0.5rem 0.75rem;
+  border: 1px solid var(--border-color);
+}
+
+.markdown-body a {
+  color: var(--accent-cyan);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  transition: opacity 0.15s ease;
+}
+
+.markdown-body a:hover {
+  opacity: 0.8;
+}
+
+/* Inline Code */
+.markdown-body :not(pre) > code {
+  font-family: var(--font-geist-mono), ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: 0.85em;
+  background-color: var(--bg-surface-active);
+  color: var(--accent-pink);
+  padding: 0.15rem 0.4rem;
+  border-radius: 0.25rem;
+  border: 1px solid var(--border-subtle);
+}
+
+/* Highlighting Tokens (Dracula in Dark, Clean Modern in Light) */
+.dark .hljs-keyword,
+.dark .hljs-operator,
+.dark .hljs-selector-tag {
+  color: #ff79c6;
+}
+
+.dark .hljs-string,
+.dark .hljs-attr,
+.dark .hljs-template-variable {
+  color: #f1fa8c;
+}
+
+.dark .hljs-comment,
+.dark .hljs-quote {
+  color: #6272a4;
+  font-style: italic;
+}
+
+.dark .hljs-number,
+.dark .hljs-literal {
+  color: #bd93f9;
+}
+
+.dark .hljs-function,
+.dark .hljs-title,
+.dark .hljs-section {
+  color: #50fa7b;
+}
+
+.dark .hljs-variable,
+.dark .hljs-params {
+  color: #ffb86c;
+}
+
+.dark .hljs-type,
+.dark .hljs-class {
+  color: #8be9fd;
+}
+
+/* Light Theme Code Tokens */
+:root:not(.dark) .hljs-keyword,
+:root:not(.dark) .hljs-operator {
+  color: #7c3aed;
+  font-weight: 600;
+}
+
+:root:not(.dark) .hljs-string {
+  color: #16a34a;
+}
+
+:root:not(.dark) .hljs-comment {
+  color: #94a3b8;
+  font-style: italic;
+}
+
+:root:not(.dark) .hljs-number {
+  color: #ea580c;
+}
+
+:root:not(.dark) .hljs-function,
+:root:not(.dark) .hljs-title {
+  color: #0284c7;
 }
