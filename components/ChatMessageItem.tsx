@@ -3,6 +3,8 @@
 import React, { useState } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
+import remarkMath from 'remark-math';
+import rehypeKatex from 'rehype-katex';
 import { ChatMessage } from '@/lib/types';
 import { CodeBlock } from './CodeBlock';
 import { Bot, User, Copy, Check, FileText } from 'lucide-react';
@@ -45,6 +47,10 @@ export const ChatMessageItem: React.FC<ChatMessageItemProps> = ({
 
     // Collapse multiple consecutive horizontal dividers into one
     text = text.replace(/(?:\r?\n\s*[-=_]{3,}\s*){2,}/g, '\n\n---\n\n');
+
+    // Normalize LaTeX delimiters \[ ... \] to $$ ... $$ and \( ... \) to $ ... $
+    text = text.replace(/\\\[([\s\S]*?)\\\]/g, '$$\n$1\n$$');
+    text = text.replace(/\\\(([\s\S]*?)\\\)/g, '$$$1$$');
 
     return text;
   }, [message.content, isUser]);
@@ -157,7 +163,8 @@ export const ChatMessageItem: React.FC<ChatMessageItemProps> = ({
           <div className="markdown-body">
             {cleanContent ? (
               <ReactMarkdown
-                remarkPlugins={[remarkGfm]}
+                remarkPlugins={[remarkGfm, remarkMath]}
+                rehypePlugins={[rehypeKatex]}
                 components={{
                   hr: () => (
                     <hr className="my-5 border-t border-[var(--border-color)] opacity-40" />
