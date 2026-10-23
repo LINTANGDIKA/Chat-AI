@@ -1,13 +1,14 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import remarkMath from 'remark-math';
 import rehypeKatex from 'rehype-katex';
 import { ChatMessage } from '@/lib/types';
 import { CodeBlock } from './CodeBlock';
-import { Bot, User, Copy, Check, FileText } from 'lucide-react';
+import { exportToWord, exportToPdf } from '@/lib/exportDoc';
+import { Bot, User, Copy, Check, FileText, Printer } from 'lucide-react';
 
 interface ChatMessageItemProps {
   message: ChatMessage;
@@ -22,6 +23,7 @@ export const ChatMessageItem: React.FC<ChatMessageItemProps> = ({
 }) => {
   const [copied, setCopied] = useState(false);
   const isUser = message.role === 'user';
+  const markdownRef = useRef<HTMLDivElement>(null);
 
   const handleCopyAll = async () => {
     try {
@@ -31,6 +33,20 @@ export const ChatMessageItem: React.FC<ChatMessageItemProps> = ({
     } catch (err) {
       console.error('Failed to copy message:', err);
     }
+  };
+
+  const handleExportWord = () => {
+    if (!markdownRef.current) return;
+    const firstLine = cleanContent.split('\n')[0].replace(/^#+\s*/, '').trim();
+    const docTitle = firstLine ? firstLine.slice(0, 45) : 'Dokumen Hero AI';
+    exportToWord(markdownRef.current.innerHTML, docTitle);
+  };
+
+  const handleExportPdf = () => {
+    if (!markdownRef.current) return;
+    const firstLine = cleanContent.split('\n')[0].replace(/^#+\s*/, '').trim();
+    const docTitle = firstLine ? firstLine.slice(0, 45) : 'Dokumen Hero AI';
+    exportToPdf(markdownRef.current.innerHTML, docTitle);
   };
 
   // Clean and sanitize AI text to remove unsightly raw separator artifacts
@@ -139,28 +155,48 @@ export const ChatMessageItem: React.FC<ChatMessageItemProps> = ({
             </div>
 
             {!isStreaming && (
-              <button
-                onClick={handleCopyAll}
-                className="opacity-0 group-hover:opacity-100 transition-opacity flex items-center gap-1 text-[11px] hover:text-[var(--text-primary)] cursor-pointer"
-                title="Salin balasan"
-              >
-                {copied ? (
-                  <>
-                    <Check className="w-3.5 h-3.5 text-[var(--accent-green)]" />
-                    <span className="text-[var(--accent-green)]">Tersalin</span>
-                  </>
-                ) : (
-                  <>
-                    <Copy className="w-3.5 h-3.5" />
-                    <span>Salin</span>
-                  </>
-                )}
-              </button>
+              <div className="opacity-0 group-hover:opacity-100 transition-opacity flex items-center gap-1.5 text-[11px]">
+                <button
+                  onClick={handleExportWord}
+                  className="flex items-center gap-1 text-[var(--text-muted)] hover:text-[var(--accent-cyan)] transition-colors cursor-pointer px-1.5 py-0.5 rounded hover:bg-[var(--bg-surface-hover)]"
+                  title="Unduh sebagai dokumen Word (.doc)"
+                >
+                  <FileText className="w-3.5 h-3.5 text-[var(--accent-cyan)]" />
+                  <span className="hidden sm:inline">Word</span>
+                </button>
+
+                <button
+                  onClick={handleExportPdf}
+                  className="flex items-center gap-1 text-[var(--text-muted)] hover:text-[var(--accent-red)] transition-colors cursor-pointer px-1.5 py-0.5 rounded hover:bg-[var(--bg-surface-hover)]"
+                  title="Cetak atau simpan sebagai PDF"
+                >
+                  <Printer className="w-3.5 h-3.5 text-[var(--accent-red)]" />
+                  <span className="hidden sm:inline">PDF</span>
+                </button>
+
+                <button
+                  onClick={handleCopyAll}
+                  className="flex items-center gap-1 text-[var(--text-muted)] hover:text-[var(--text-primary)] transition-colors cursor-pointer px-1.5 py-0.5 rounded hover:bg-[var(--bg-surface-hover)]"
+                  title="Salin balasan"
+                >
+                  {copied ? (
+                    <>
+                      <Check className="w-3.5 h-3.5 text-[var(--accent-green)]" />
+                      <span className="text-[var(--accent-green)]">Tersalin</span>
+                    </>
+                  ) : (
+                    <>
+                      <Copy className="w-3.5 h-3.5" />
+                      <span className="hidden sm:inline">Salin</span>
+                    </>
+                  )}
+                </button>
+              </div>
             )}
           </div>
 
           {/* Markdown Content */}
-          <div className="markdown-body">
+          <div ref={markdownRef} className="markdown-body">
             {cleanContent ? (
               <ReactMarkdown
                 remarkPlugins={[remarkGfm, remarkMath]}
