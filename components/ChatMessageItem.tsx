@@ -8,7 +8,7 @@ import rehypeKatex from 'rehype-katex';
 import { ChatMessage } from '@/lib/types';
 import { CodeBlock } from './CodeBlock';
 import { exportToWord, exportToPdf } from '@/lib/exportDoc';
-import { Bot, User, Copy, Check, FileText, Printer } from 'lucide-react';
+import { Bot, User, Copy, Check, FileText, Printer, FileDown } from 'lucide-react';
 
 interface ChatMessageItemProps {
   message: ChatMessage;
@@ -155,7 +155,7 @@ export const ChatMessageItem: React.FC<ChatMessageItemProps> = ({
             </div>
 
             {!isStreaming && (
-              <div className="opacity-0 group-hover:opacity-100 transition-opacity flex items-center gap-1.5 text-[11px]">
+              <div className="opacity-80 hover:opacity-100 transition-opacity flex items-center gap-1.5 text-[11px]">
                 <button
                   onClick={handleExportWord}
                   className="flex items-center gap-1 text-[var(--text-muted)] hover:text-[var(--accent-cyan)] transition-colors cursor-pointer px-1.5 py-0.5 rounded hover:bg-[var(--bg-surface-hover)]"
@@ -238,6 +238,48 @@ export const ChatMessageItem: React.FC<ChatMessageItemProps> = ({
               <p className="text-[var(--text-muted)] italic text-xs">Tidak ada balasan teks.</p>
             )}
           </div>
+
+          {/* Dedicated Bottom Toolbar for Document Download & Copy */}
+          {!isStreaming && cleanContent && (
+            <div className="pt-2.5 mt-2 flex flex-wrap items-center gap-2 border-t border-[var(--border-subtle)] text-xs select-none">
+              <span className="text-[11px] text-[var(--text-muted)] flex items-center gap-1 font-medium">
+                <FileDown className="w-3.5 h-3.5 text-[var(--accent)]" /> Unduh Dokumen:
+              </span>
+              <button
+                onClick={handleExportWord}
+                className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-[var(--bg-surface-active)] hover:bg-[var(--bg-surface-hover)] border border-[var(--border-color)] text-[var(--text-primary)] hover:text-[var(--accent-cyan)] transition-colors cursor-pointer text-[11px] font-medium shadow-2xs"
+                title="Unduh sebagai dokumen Word (.doc)"
+              >
+                <FileText className="w-3.5 h-3.5 text-[var(--accent-cyan)]" />
+                <span>Word (.doc)</span>
+              </button>
+              <button
+                onClick={handleExportPdf}
+                className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-[var(--bg-surface-active)] hover:bg-[var(--bg-surface-hover)] border border-[var(--border-color)] text-[var(--text-primary)] hover:text-[var(--accent-red)] transition-colors cursor-pointer text-[11px] font-medium shadow-2xs"
+                title="Cetak atau simpan sebagai PDF"
+              >
+                <Printer className="w-3.5 h-3.5 text-[var(--accent-red)]" />
+                <span>PDF</span>
+              </button>
+              <button
+                onClick={handleCopyAll}
+                className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-[var(--bg-surface-active)] hover:bg-[var(--bg-surface-hover)] border border-[var(--border-color)] text-[var(--text-primary)] transition-colors cursor-pointer text-[11px] font-medium ml-auto shadow-2xs"
+                title="Salin semua teks"
+              >
+                {copied ? (
+                  <>
+                    <Check className="w-3.5 h-3.5 text-[var(--accent-green)]" />
+                    <span className="text-[var(--accent-green)]">Tersalin</span>
+                  </>
+                ) : (
+                  <>
+                    <Copy className="w-3.5 h-3.5" />
+                    <span>Salin</span>
+                  </>
+                )}
+              </button>
+            </div>
+          )}
         </div>
       </div>
     </div>
