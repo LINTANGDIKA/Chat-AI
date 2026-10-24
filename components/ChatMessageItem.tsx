@@ -7,6 +7,7 @@ import remarkMath from 'remark-math';
 import rehypeKatex from 'rehype-katex';
 import { ChatMessage } from '@/lib/types';
 import { CodeBlock } from './CodeBlock';
+import { TimeoutHtmlView } from './TimeoutHtmlView';
 import { exportToWord, exportToPdf } from '@/lib/exportDoc';
 import { Bot, User, Copy, Check, FileText, Printer, FileDown } from 'lucide-react';
 
@@ -130,6 +131,33 @@ export const ChatMessageItem: React.FC<ChatMessageItemProps> = ({
     });
 
     return text;
+  }, [message.content, isUser]);
+
+  // Check if message content contains an HTML timeout error (e.g. Cloudflare HTTP 524 / 504)
+  const timeoutHtmlData = React.useMemo(() => {
+    if (isUser || !message.content) return null;
+
+    const content = message.content;
+    const isTimeout = /524|504|timeout|cf-error-details|cf-wrapper/i.test(content);
+    if (!isTimeout) return null;
+
+    const htmlMatch =
+      content.match(/<!DOCTYPE\s+html[\s\S]*?(?:<\/html>|$)/i) ||
+      content.match(/<html[\s\S]*?(?:<\/html>|$)/i);
+    if (!htmlMatch) return null;
+
+    const rawHtml = htmlMatch[0].trim();
+    const statusMatch = content.match(/HTTP\s+(524|504|\d+)/i) || rawHtml.match(/(\b524\b|\b504\b)/);
+    const statusCode = statusMatch ? statusMatch[1] : '524';
+
+    const titleMatch = rawHtml.match(/<title>([\s\S]*?)<\/title>/i);
+    const pageTitle = titleMatch ? titleMatch[1].trim() : `HTTP ${statusCode}: A timeout occurred`;
+
+    return {
+      rawHtml,
+      statusCode,
+      pageTitle,
+    };
   }, [message.content, isUser]);
 
   const formattedTime = new Date(message.timestamp).toLocaleTimeString([], {
@@ -256,9 +284,16 @@ export const ChatMessageItem: React.FC<ChatMessageItemProps> = ({
             )}
           </div>
 
-          {/* Markdown Content */}
+          {/* Markdown Content or Timeout HTML View */}
           <div ref={markdownRef} className="markdown-body">
-            {cleanContent ? (
+            {timeoutHtmlData ? (
+              <TimeoutHtmlView
+                statusCode={timeoutHtmlData.statusCode}
+                pageTitle={timeoutHtmlData.pageTitle}
+                rawHtml={timeoutHtmlData.rawHtml}
+                fullContent={cleanContent}
+              />
+            ) : cleanContent ? (
               <ReactMarkdown
                 remarkPlugins={[remarkDisableIndentedCode, remarkGfm, remarkMath]}
                 rehypePlugins={[rehypeKatex]}
