@@ -64,9 +64,54 @@ export const ChatMessageItem: React.FC<ChatMessageItemProps> = ({
     // Collapse multiple consecutive horizontal dividers into one
     text = text.replace(/(?:\r?\n\s*[-=_]{3,}\s*){2,}/g, '\n\n---\n\n');
 
-    // Normalize LaTeX delimiters \[ ... \] to $$ ... $$ and \( ... \) to $ ... $
-    text = text.replace(/\\\[([\s\S]*?)\\\]/g, '$$\n$1\n$$');
-    text = text.replace(/\\\(([\s\S]*?)\\\)/g, '$$$1$$');
+    // 1. Normalize \[ ... \] to display math $$ ... $$ using replacer function
+    text = text.replace(/\\\[([\s\S]*?)\\\]/g, (_, eq) => {
+      return `\n\n$$\n${eq.trim()}\n$$\n\n`;
+    });
+
+    // 2. Normalize \( ... \) to inline math $ ... $ using replacer function
+    text = text.replace(/\\\(([\s\S]*?)\\\)/g, (_, eq) => {
+      return `$${eq.trim()}$`;
+    });
+
+    // 3. Fix broken inline math that actually contains multi-line aligned equations (e.g. $ ... \end{aligned}$$ or $ ... \end{aligned}$)
+    text = text.replace(/\$([^\$\n]*?\\end\{aligned\})\s*\$*/g, (_, inner) => {
+      let clean = inner.trim();
+      if (!clean.includes('\\begin{aligned}')) {
+        clean = '\\begin{aligned}\n' + clean;
+      }
+      return `\n\n$$\n${clean}\n$$\n\n`;
+    });
+
+    // 4. Ensure standalone LaTeX environments not wrapped in $$ are wrapped in $$
+    const envPattern = /\\begin\{(aligned|align\*?|cases|[pbBvV]?matrix|gather\*?)\}[\s\S]*?\\end\{\1\}/g;
+    text = text.replace(envPattern, (match, env, offset, fullStr) => {
+      const before = fullStr.slice(Math.max(0, offset - 10), offset);
+      if (before.includes('$$') || before.includes('$')) {
+        return match;
+      }
+      return `\n\n$$\n${match}\n$$\n\n`;
+    });
+
+    // 5. In any $$ ... $$ block, fix alignment or environment issues
+    text = text.replace(/\$\$([\s\S]*?)\$\$/g, (_, inner) => {
+      let fixed = inner.trim();
+
+      // If it has \end{aligned} but missing \begin{aligned}
+      if (fixed.includes('\\end{aligned}') && !fixed.includes('\\begin{aligned}')) {
+        fixed = '\\begin{aligned}\n' + fixed;
+      }
+      // If it has \begin{aligned} but missing \end{aligned}
+      if (fixed.includes('\\begin{aligned}') && !fixed.includes('\\end{aligned}')) {
+        fixed = fixed + '\n\\end{aligned}';
+      }
+      // If it has & alignment points or \\ linebreaks without any \begin{...} environment, wrap in aligned!
+      if (fixed.includes('&') && !fixed.includes('\\begin{')) {
+        fixed = '\\begin{aligned}\n' + fixed + '\n\\end{aligned}';
+      }
+
+      return `\n\n$$\n${fixed}\n$$\n\n`;
+    });
 
     return text;
   }, [message.content, isUser]);
