@@ -51,6 +51,50 @@ export const ChatInput: React.FC<ChatInputProps> = ({
         ]);
       };
       reader.readAsDataURL(file);
+    } else if (/\.(xlsx|xls|csv)$/i.test(file.name)) {
+      // Automatic Excel spreadsheet parser into clean structured tabular text for AI
+      const reader = new FileReader();
+      reader.onload = async (e) => {
+        try {
+          const XLSX = await import('xlsx');
+          const data = new Uint8Array(e.target?.result as ArrayBuffer);
+          const workbook = XLSX.read(data, { type: 'array' });
+          let sheetsText = '';
+          workbook.SheetNames.forEach((sheetName) => {
+            const worksheet = workbook.Sheets[sheetName];
+            const csv = XLSX.utils.sheet_to_csv(worksheet);
+            if (csv.trim()) {
+              sheetsText += `[Lembar Kerja: ${sheetName}]\n${csv.trim()}\n\n`;
+            }
+          });
+
+          setAttachments((prev) => [
+            ...prev,
+            {
+              name: file.name,
+              type: file.type || 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+              isImage: false,
+              content: sheetsText.trim() || 'File Excel kosong atau tidak memiliki data.',
+            },
+          ]);
+        } catch (err) {
+          console.error('Failed to parse Excel file:', err);
+          const fallbackReader = new FileReader();
+          fallbackReader.onload = (fe) => {
+            setAttachments((prev) => [
+              ...prev,
+              {
+                name: file.name,
+                type: file.type || 'text/plain',
+                isImage: false,
+                content: fe.target?.result as string,
+              },
+            ]);
+          };
+          fallbackReader.readAsText(file);
+        }
+      };
+      reader.readAsArrayBuffer(file);
     } else {
       const reader = new FileReader();
       reader.onload = (e) => {
