@@ -23,6 +23,7 @@
     "rehype-katex": "^7.0.1",
     "remark-gfm": "^4.0.1",
     "remark-math": "^6.0.0",
+    "unpdf": "^1.9.1",
     "xlsx": "^0.18.5"
   },
   "devDependencies": {

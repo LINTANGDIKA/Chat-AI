@@ -95,6 +95,53 @@ export const ChatInput: React.FC<ChatInputProps> = ({
         }
       };
       reader.readAsArrayBuffer(file);
+    } else if (/\.pdf$/i.test(file.name) || file.type === 'application/pdf') {
+      // Automatic PDF parser: extract clean text page-by-page for AI
+      const reader = new FileReader();
+      reader.onload = async (e) => {
+        try {
+          const { extractText } = await import('unpdf');
+          const data = new Uint8Array(e.target?.result as ArrayBuffer);
+          const result = await extractText(data);
+          const pages = Array.isArray(result.text) ? result.text : [result.text];
+          let docText = `[Dokumen PDF: ${file.name} - Total ${result.totalPages || pages.length} Halaman]\n\n`;
+          let pageCountWithText = 0;
+
+          pages.forEach((pageContent, idx) => {
+            const cleanPage = (pageContent || '').trim();
+            if (cleanPage) {
+              pageCountWithText++;
+              docText += `--- Halaman ${idx + 1} ---\n${cleanPage}\n\n`;
+            }
+          });
+
+          if (pageCountWithText === 0) {
+            docText += `(Perhatian: Dokumen PDF ini tidak memiliki lapisan teks yang dapat diekstrak. File mungkin merupakan hasil scan gambar tanpa teks OCR).`;
+          }
+
+          setAttachments((prev) => [
+            ...prev,
+            {
+              name: file.name,
+              type: 'application/pdf',
+              isImage: false,
+              content: docText.trim(),
+            },
+          ]);
+        } catch (err) {
+          console.error('Failed to parse PDF document:', err);
+          setAttachments((prev) => [
+            ...prev,
+            {
+              name: file.name,
+              type: 'application/pdf',
+              isImage: false,
+              content: `[Dokumen PDF: ${file.name}]\n(Gagal membaca teks dari berkas PDF ini. Dokumen mungkin dikunci kata sandi atau rusak).`,
+            },
+          ]);
+        }
+      };
+      reader.readAsArrayBuffer(file);
     } else {
       const reader = new FileReader();
       reader.onload = (e) => {
@@ -265,7 +312,7 @@ export const ChatInput: React.FC<ChatInputProps> = ({
             onChange={handleFileInputChange}
             multiple
             className="hidden"
-            accept="image/*,.txt,.md,.json,.js,.ts,.tsx,.py,.html,.css,.csv,.sql,.go,.rs"
+            accept="image/*,.pdf,.xlsx,.xls,.csv,.txt,.md,.json,.js,.ts,.tsx,.py,.html,.css,.sql,.go,.rs"
           />
 
           <button
