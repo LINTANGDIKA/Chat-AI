@@ -4,8 +4,20 @@
  * and printable PDF documents.
  */
 
-import JSZip from 'jszip';
-import { mml2omml } from 'mathml2omml';
+import {
+  Document,
+  Packer,
+  Paragraph,
+  TextRun,
+  HeadingLevel,
+  AlignmentType,
+  Table,
+  TableRow,
+  TableCell,
+  WidthType,
+  BorderStyle,
+} from 'docx';
+import { Math as DocxMath, latexToMath } from 'docx/math';
 
 function escapeXml(unsafe: string): string {
   return (unsafe || '')
@@ -16,30 +28,47 @@ function escapeXml(unsafe: string): string {
     .replace(/'/g, '&apos;');
 }
 
-function convertKatexToOmml(katexEl: Element): string | null {
-  try {
-    const mathEl = katexEl.querySelector('math');
-    if (mathEl) {
-      const clone = mathEl.cloneNode(true) as Element;
-      clone.querySelectorAll('annotation').forEach((ann) => ann.remove());
-      const mathmlStr = clone.outerHTML;
-      const omml = mml2omml(mathmlStr);
-      if (omml) return omml;
-    }
-  } catch (err) {
-    console.warn('Hero AI: OMML conversion error:', err);
-  }
-  return null;
-}
-
 interface InlineStyle {
   bold?: boolean;
   italic?: boolean;
   code?: boolean;
 }
 
-function parseInlineRuns(node: Node, style: InlineStyle = {}): string {
-  let xml = '';
+function extractLatexFromKatex(el: Element): string {
+  const ann =
+    el.querySelector('annotation[encoding="application/x-tex"]') ||
+    el.querySelector('annotation');
+  if (ann && ann.textContent) {
+    return ann.textContent.trim();
+  }
+  const dataLatex = el.getAttribute('data-latex') || el.getAttribute('data-expr');
+  if (dataLatex) return dataLatex.trim();
+  return el.textContent?.trim() || '';
+}
+
+function safeLatexToMath(latex: string): (DocxMath | TextRun)[] {
+  if (!latex) return [];
+  try {
+    const mathElements = latexToMath(latex);
+    return [new DocxMath({ children: mathElements })];
+  } catch (err) {
+    console.warn('Hero AI: latexToMath error for:', latex, err);
+    try {
+      const simplified = latex
+        .replace(/\\begin\{(?:aligned|matrix|bmatrix|pmatrix)\}/g, '')
+        .replace(/\\end\{(?:aligned|matrix|bmatrix|pmatrix)\}/g, '')
+        .replace(/&/g, ' ')
+        .trim();
+      const mathElements = latexToMath(simplified);
+      return [new DocxMath({ children: mathElements })];
+    } catch {
+      return [new TextRun({ text: latex, italics: true, color: '334155' })];
+    }
+  }
+}
+
+function parseInlineRuns(node: Node, style: InlineStyle = {}): (TextRun | DocxMath)[] {
+  const runs: (TextRun | DocxMath)[] = [];
 
   for (let i = 0; i < node.childNodes.length; i++) {
     const child = node.childNodes[i];
@@ -48,127 +77,266 @@ function parseInlineRuns(node: Node, style: InlineStyle = {}): string {
       // Text node
       const text = child.textContent;
       if (text) {
-        xml += '<w:r><w:rPr>';
-        if (style.bold) xml += '<w:b/>';
-        if (style.italic) xml += '<w:i/>';
-        if (style.code) {
-          xml += '<w:rFonts w:ascii="Consolas" w:hAnsi="Consolas"/><w:shd w:fill="F1F5F9"/><w:sz w:val="20"/>';
-        }
-        xml += `</w:rPr><w:t xml:space="preserve">${escapeXml(text)}</w:t></w:r>`;
+        runs.push(
+          new TextRun({
+            text,
+            bold: style.bold,
+            italics: style.italic,
+            font: style.code ? 'Consolas' : 'Calibri',
+            size: style.code ? 20 : 22,
+            color: style.code ? '334155' : '1E293B',
+            shading: style.code ? { fill: 'F1F5F9' } : undefined,
+          })
+        );
       }
     } else if (child.nodeType === 1) {
       // Element node
-      const el = child as Element;
+      const el = child as HTMLElement;
       const tag = el.tagName.toLowerCase();
 
       if (el.classList.contains('katex')) {
-        const omml = convertKatexToOmml(el);
-        if (omml) {
-          xml += omml;
-        } else {
-          const txt = el.textContent || '';
-          xml += `<w:r><w:rPr><w:i/></w:rPr><w:t xml:space="preserve">${escapeXml(txt)}</w:t></w:r>`;
+        const latex = extractLatexFromKatex(el);
+        if (latex) {
+          runs.push(...safeLatexToMath(latex));
         }
       } else if (tag === 'strong' || tag === 'b') {
-        xml += parseInlineRuns(el, { ...style, bold: true });
+        runs.push(...parseInlineRuns(el, { ...style, bold: true }));
       } else if (tag === 'em' || tag === 'i') {
-        xml += parseInlineRuns(el, { ...style, italic: true });
+        runs.push(...parseInlineRuns(el, { ...style, italic: true }));
       } else if (tag === 'code') {
-        xml += parseInlineRuns(el, { ...style, code: true });
+        runs.push(...parseInlineRuns(el, { ...style, code: true }));
+      } else if (tag === 'br') {
+        runs.push(new TextRun({ break: 1 }));
       } else if (tag === 'button') {
-        // Skip interactive buttons
         continue;
       } else {
-        xml += parseInlineRuns(el, style);
+        runs.push(...parseInlineRuns(el, style));
       }
     }
   }
 
-  return xml;
+  return runs;
 }
 
-function domToDocxXml(container: Element): string {
-  let bodyXml = '';
+function convertNodeToDocx(node: Element): (Paragraph | Table)[] {
+  const tag = node.tagName.toLowerCase();
+  const items: (Paragraph | Table)[] = [];
 
-  for (let i = 0; i < container.children.length; i++) {
-    const node = container.children[i];
-    const tag = node.tagName.toLowerCase();
-
-    // Skip interactive button bars
-    if (tag === 'button' || node.classList.contains('select-none') && node.querySelector('button')) {
-      continue;
-    }
-
-    if (node.classList.contains('katex-display')) {
-      const omml = convertKatexToOmml(node);
-      if (omml) {
-        bodyXml += `<w:p><w:pPr><w:jc w:val="center"/><w:spacing w:before="160" w:after="160"/></w:pPr><m:oMathPara>${omml}</m:oMathPara></w:p>`;
-      }
-    } else if (/^h[1-6]$/.test(tag)) {
-      const level = tag === 'h1' ? 'Heading1' : tag === 'h2' ? 'Heading2' : 'Heading3';
-      const runs = parseInlineRuns(node);
-      bodyXml += `<w:p><w:pPr><w:pStyle w:val="${level}"/></w:pPr>${runs}</w:p>`;
-    } else if (tag === 'p') {
-      const displayMath = node.querySelector('.katex-display');
-      if (displayMath && node.children.length === 1) {
-        const omml = convertKatexToOmml(displayMath);
-        if (omml) {
-          bodyXml += `<w:p><w:pPr><w:jc w:val="center"/><w:spacing w:before="160" w:after="160"/></w:pPr><m:oMathPara>${omml}</m:oMathPara></w:p>`;
-          continue;
-        }
-      }
-      const runs = parseInlineRuns(node);
-      if (runs.trim()) {
-        bodyXml += `<w:p>${runs}</w:p>`;
-      }
-    } else if (tag === 'ul' || tag === 'ol') {
-      const isOl = tag === 'ol';
-      let idx = 1;
-      for (let j = 0; j < node.children.length; j++) {
-        const li = node.children[j];
-        if (li.tagName.toLowerCase() === 'li') {
-          const prefix = isOl ? `${idx++}. ` : '• ';
-          const runs = parseInlineRuns(li);
-          bodyXml += `<w:p><w:pPr><w:pStyle w:val="ListParagraph"/><w:ind w:left="400"/></w:pPr><w:r><w:t xml:space="preserve">${prefix}</w:t></w:r>${runs}</w:p>`;
-        }
-      }
-    } else if (tag === 'pre') {
-      // Code block
-      const codeEl = node.querySelector('code') || node;
-      const text = codeEl.textContent || '';
-      const lines = text.split('\n');
-      for (const line of lines) {
-        bodyXml += `<w:p><w:pPr><w:pStyle w:val="CodeBlock"/><w:shd w:fill="F8FAFC"/><w:spacing w:after="0" w:line="240" w:lineRule="auto"/></w:pPr><w:r><w:rPr><w:rFonts w:ascii="Consolas" w:hAnsi="Consolas"/><w:sz w:val="20"/><w:color w:val="334155"/></w:rPr><w:t xml:space="preserve">${escapeXml(line)}</w:t></w:r></w:p>`;
-      }
-    } else if (tag === 'blockquote') {
-      const runs = parseInlineRuns(node);
-      bodyXml += `<w:p><w:pPr><w:ind w:left="400"/><w:pBdr><w:left w:val="single" w:sz="18" w:space="10" w:color="7C3AED"/></w:pBdr><w:shd w:fill="F8FAFC"/><w:spacing w:before="120" w:after="120"/></w:pPr>${runs}</w:p>`;
-    } else if (tag === 'hr') {
-      bodyXml += `<w:p><w:pPr><w:pBdr><w:bottom w:val="single" w:sz="6" w:space="1" w:color="E2E8F0"/></w:pBdr><w:spacing w:before="240" w:after="240"/></w:pPr></w:p>`;
-    } else if (tag === 'table') {
-      bodyXml += `<w:tbl><w:tblPr><w:tblW w:w="5000" w:type="pct"/><w:tblBorders><w:top w:val="single" w:sz="4" w:space="0" w:color="CBD5E1"/><w:left w:val="none"/><w:bottom w:val="single" w:sz="4" w:space="0" w:color="CBD5E1"/><w:right w:val="none"/><w:insideH w:val="single" w:sz="4" w:space="0" w:color="E2E8F0"/><w:insideV w:val="none"/></w:tblBorders></w:tblPr>`;
-      const rows = node.querySelectorAll('tr');
-      for (let r = 0; r < rows.length; r++) {
-        const row = rows[r];
-        bodyXml += `<w:tr>`;
-        for (let c = 0; c < row.children.length; c++) {
-          const cell = row.children[c];
-          const isTh = cell.tagName.toLowerCase() === 'th';
-          const runs = parseInlineRuns(cell, isTh ? { bold: true } : {});
-          bodyXml += `<w:tc><w:tcPr><w:tcMar><w:top w:w="120" w:type="dxa"/><w:bottom w:w="120" w:type="dxa"/><w:left w:w="160" w:type="dxa"/><w:right w:w="160" w:type="dxa"/></w:tcMar>${isTh ? '<w:shd w:fill="F8FAFC"/>' : ''}</w:tcPr><w:p>${runs}</w:p></w:tc>`;
-        }
-        bodyXml += `</w:tr>`;
-      }
-      bodyXml += `</w:tbl>`;
-    } else {
-      const runs = parseInlineRuns(node);
-      if (runs.trim()) {
-        bodyXml += `<w:p>${runs}</w:p>`;
-      }
-    }
+  // Skip interactive or empty items
+  if (tag === 'button' || (node.classList.contains('select-none') && node.querySelector('button'))) {
+    return items;
   }
 
-  return bodyXml;
+  // Display math
+  if (node.classList.contains('katex-display')) {
+    const latex = extractLatexFromKatex(node);
+    if (latex) {
+      items.push(
+        new Paragraph({
+          alignment: AlignmentType.CENTER,
+          spacing: { before: 180, after: 180 },
+          children: safeLatexToMath(latex),
+        })
+      );
+    }
+    return items;
+  }
+
+  if (/^h[1-6]$/.test(tag)) {
+    const level =
+      tag === 'h1'
+        ? HeadingLevel.HEADING_1
+        : tag === 'h2'
+        ? HeadingLevel.HEADING_2
+        : tag === 'h3'
+        ? HeadingLevel.HEADING_3
+        : HeadingLevel.HEADING_4;
+
+    const runs = parseInlineRuns(node);
+    if (runs.length > 0) {
+      items.push(
+        new Paragraph({
+          heading: level,
+          children: runs,
+          spacing: { before: 240, after: 120 },
+        })
+      );
+    }
+    return items;
+  }
+
+  if (tag === 'p') {
+    // Check if the only child is a display math
+    const displayMath = node.querySelector('.katex-display');
+    if (displayMath && node.children.length === 1 && !node.textContent?.replace(displayMath.textContent || '', '').trim()) {
+      const latex = extractLatexFromKatex(displayMath);
+      if (latex) {
+        items.push(
+          new Paragraph({
+            alignment: AlignmentType.CENTER,
+            spacing: { before: 180, after: 180 },
+            children: safeLatexToMath(latex),
+          })
+        );
+        return items;
+      }
+    }
+
+    const runs = parseInlineRuns(node);
+    if (runs.length > 0) {
+      items.push(
+        new Paragraph({
+          children: runs,
+          spacing: { after: 120 },
+        })
+      );
+    }
+    return items;
+  }
+
+  if (tag === 'ul' || tag === 'ol') {
+    const isOl = tag === 'ol';
+    let idx = 1;
+    for (let j = 0; j < node.children.length; j++) {
+      const li = node.children[j];
+      if (li.tagName.toLowerCase() === 'li') {
+        const prefix = isOl ? `${idx++}. ` : '• ';
+        const runs = parseInlineRuns(li);
+        items.push(
+          new Paragraph({
+            indent: { left: 400 },
+            spacing: { after: 80 },
+            children: [
+              new TextRun({ text: prefix, bold: true, color: '475569' }),
+              ...runs,
+            ],
+          })
+        );
+      }
+    }
+    return items;
+  }
+
+  if (tag === 'blockquote') {
+    const runs = parseInlineRuns(node);
+    if (runs.length > 0) {
+      items.push(
+        new Paragraph({
+          indent: { left: 400 },
+          border: {
+            left: { color: '7C3AED', space: 10, style: BorderStyle.SINGLE, size: 16 },
+          },
+          spacing: { before: 140, after: 140 },
+          children: runs,
+        })
+      );
+    }
+    return items;
+  }
+
+  if (tag === 'pre') {
+    const codeEl = node.querySelector('code') || node;
+    const text = codeEl.textContent || '';
+    const lines = text.split('\n');
+    for (const line of lines) {
+      items.push(
+        new Paragraph({
+          shading: { fill: 'F8FAFC' },
+          spacing: { after: 0, line: 240 },
+          children: [
+            new TextRun({
+              text: line || ' ',
+              font: 'Consolas',
+              size: 20,
+              color: '334155',
+            }),
+          ],
+        })
+      );
+    }
+    items.push(new Paragraph({ spacing: { after: 120 } }));
+    return items;
+  }
+
+  if (tag === 'hr') {
+    items.push(
+      new Paragraph({
+        border: {
+          bottom: { color: 'E2E8F0', space: 1, style: BorderStyle.SINGLE, size: 6 },
+        },
+        spacing: { before: 180, after: 180 },
+      })
+    );
+    return items;
+  }
+
+  if (tag === 'table') {
+    const rows: TableRow[] = [];
+    const trEls = node.querySelectorAll('tr');
+    for (let r = 0; r < trEls.length; r++) {
+      const tr = trEls[r];
+      const cells: TableCell[] = [];
+      for (let c = 0; c < tr.children.length; c++) {
+        const cell = tr.children[c];
+        const isTh = cell.tagName.toLowerCase() === 'th';
+        const runs = parseInlineRuns(cell, isTh ? { bold: true } : {});
+        cells.push(
+          new TableCell({
+            shading: isTh ? { fill: 'F8FAFC' } : undefined,
+            margins: { top: 120, bottom: 120, left: 160, right: 160 },
+            borders: {
+              top: { style: BorderStyle.SINGLE, size: 1, color: 'CBD5E1' },
+              bottom: { style: BorderStyle.SINGLE, size: 1, color: 'CBD5E1' },
+              left: { style: BorderStyle.NONE },
+              right: { style: BorderStyle.NONE },
+            },
+            children: [
+              new Paragraph({
+                children: runs.length > 0 ? runs : [new TextRun('')],
+              }),
+            ],
+          })
+        );
+      }
+      if (cells.length > 0) {
+        rows.push(new TableRow({ children: cells }));
+      }
+    }
+    if (rows.length > 0) {
+      items.push(
+        new Table({
+          width: { size: 100, type: WidthType.PERCENTAGE },
+          borders: {
+            top: { style: BorderStyle.SINGLE, size: 1, color: 'CBD5E1' },
+            bottom: { style: BorderStyle.SINGLE, size: 1, color: 'CBD5E1' },
+            left: { style: BorderStyle.NONE },
+            right: { style: BorderStyle.NONE },
+            insideHorizontal: { style: BorderStyle.SINGLE, size: 1, color: 'E2E8F0' },
+            insideVertical: { style: BorderStyle.NONE },
+          },
+          rows,
+        })
+      );
+      items.push(new Paragraph({ spacing: { after: 140 } }));
+    }
+    return items;
+  }
+
+  // Generic containers: unwrap children
+  if (node.children.length > 0) {
+    for (let i = 0; i < node.children.length; i++) {
+      items.push(...convertNodeToDocx(node.children[i]));
+    }
+    return items;
+  }
+
+  // Fallback for leaf text elements
+  const runs = parseInlineRuns(node);
+  if (runs.length > 0) {
+    items.push(new Paragraph({ children: runs, spacing: { after: 120 } }));
+  }
+
+  return items;
 }
 
 /**
@@ -177,124 +345,145 @@ function domToDocxXml(container: Element): string {
 export async function exportToWord(content: HTMLElement | string, title = 'Dokumen Hero AI') {
   if (typeof window === 'undefined') return;
 
-  let container: Element;
+  let container: HTMLElement;
   if (typeof content === 'string') {
     const parser = new DOMParser();
     const doc = parser.parseFromString(content, 'text/html');
     container = doc.body;
   } else {
-    container = content.cloneNode(true) as Element;
+    container = content.cloneNode(true) as HTMLElement;
   }
+
+  // Remove interactive buttons before processing
+  container.querySelectorAll('button').forEach((b) => b.remove());
 
   const formattedDate = new Date().toLocaleDateString('id-ID', {
     dateStyle: 'full',
   });
 
-  const bodyXml = domToDocxXml(container);
+  const bodyItems: (Paragraph | Table)[] = [];
 
-  const documentXml = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
-<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"
-            xmlns:m="http://schemas.openxmlformats.org/officeDocument/2006/math"
-            xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">
-  <w:body>
-    <w:p>
-      <w:pPr><w:pStyle w:val="Title"/><w:pBdr><w:bottom w:val="single" w:sz="16" w:space="8" w:color="7C3AED"/></w:pBdr><w:spacing w:after="240"/></w:pPr>
-      <w:r><w:t>${escapeXml(title)}</w:t></w:r>
-    </w:p>
-    <w:p>
-      <w:pPr><w:spacing w:after="280"/></w:pPr>
-      <w:r><w:rPr><w:color w:val="64748B"/><w:sz w:val="18"/><w:szCs w:val="18"/></w:rPr><w:t>Dibuat dengan Hero AI &bull; ${escapeXml(formattedDate)}</w:t></w:r>
-    </w:p>
-    ${bodyXml}
-    <w:sectPr>
-      <w:pgSz w:w="11906" w:h="16838"/>
-      <w:pgMar w:top="1440" w:right="1440" w:bottom="1440" w:left="1440"/>
-    </w:sectPr>
-  </w:body>
-</w:document>`;
+  // Document Title Header
+  bodyItems.push(
+    new Paragraph({
+      text: title,
+      heading: HeadingLevel.TITLE,
+      spacing: { after: 200 },
+      border: {
+        bottom: { color: '7C3AED', space: 8, style: BorderStyle.SINGLE, size: 16 },
+      },
+    }),
+    new Paragraph({
+      children: [
+        new TextRun({
+          text: `Dibuat dengan Hero AI • ${formattedDate}`,
+          italics: true,
+          color: '64748B',
+          size: 18,
+        }),
+      ],
+      spacing: { after: 320 },
+    })
+  );
 
-  const stylesXml = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
-<w:styles xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
-  <w:docDefaults>
-    <w:rPrDefault>
-      <w:rPr>
-        <w:rFonts w:ascii="Calibri" w:hAnsi="Calibri" w:cs="Calibri"/>
-        <w:sz w:val="22"/>
-        <w:szCs w:val="22"/>
-        <w:color w:val="1E293B"/>
-      </w:rPr>
-    </w:rPrDefault>
-    <w:pPrDefault>
-      <w:pPr>
-        <w:spacing w:line="280" w:lineRule="auto" w:after="140"/>
-      </w:pPr>
-    </w:pPrDefault>
-  </w:docDefaults>
-  <w:style w:type="paragraph" w:styleId="Title">
-    <w:name w:val="Title"/>
-    <w:rPr>
-      <w:rFonts w:ascii="Calibri" w:hAnsi="Calibri"/>
-      <w:b/>
-      <w:sz w:val="40"/>
-      <w:szCs w:val="40"/>
-      <w:color w:val="0F172A"/>
-    </w:rPr>
-  </w:style>
-  <w:style w:type="paragraph" w:styleId="Heading1">
-    <w:name w:val="heading 1"/>
-    <w:pPr><w:spacing w:before="360" w:after="160"/></w:pPr>
-    <w:rPr><w:rFonts w:ascii="Calibri" w:hAnsi="Calibri"/><w:b/><w:sz w:val="32"/><w:szCs w:val="32"/><w:color w:val="0F172A"/></w:rPr>
-  </w:style>
-  <w:style w:type="paragraph" w:styleId="Heading2">
-    <w:name w:val="heading 2"/>
-    <w:pPr><w:spacing w:before="280" w:after="120"/></w:pPr>
-    <w:rPr><w:rFonts w:ascii="Calibri" w:hAnsi="Calibri"/><w:b/><w:sz w:val="28"/><w:szCs w:val="28"/><w:color w:val="1E293B"/></w:rPr>
-  </w:style>
-  <w:style w:type="paragraph" w:styleId="Heading3">
-    <w:name w:val="heading 3"/>
-    <w:pPr><w:spacing w:before="200" w:after="100"/></w:pPr>
-    <w:rPr><w:rFonts w:ascii="Calibri" w:hAnsi="Calibri"/><w:b/><w:sz w:val="24"/><w:szCs w:val="24"/><w:color w:val="334155"/></w:rPr>
-  </w:style>
-  <w:style w:type="paragraph" w:styleId="ListParagraph">
-    <w:name w:val="List Paragraph"/>
-    <w:pPr><w:spacing w:after="100"/></w:pPr>
-  </w:style>
-  <w:style w:type="paragraph" w:styleId="CodeBlock">
-    <w:name w:val="Code Block"/>
-    <w:pPr><w:ind w:left="200" w:right="200"/></w:pPr>
-  </w:style>
-</w:styles>`;
+  // Convert all DOM nodes to DOCX elements
+  for (let i = 0; i < container.children.length; i++) {
+    const converted = convertNodeToDocx(container.children[i]);
+    bodyItems.push(...converted);
+  }
 
-  const contentTypesXml = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
-<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
-  <Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>
-  <Default Extension="xml" ContentType="application/xml"/>
-  <Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/>
-  <Override PartName="/word/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.styles+xml"/>
-</Types>`;
-
-  const relsXml = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
-<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
-  <Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="word/document.xml"/>
-</Relationships>`;
-
-  const docRelsXml = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
-<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
-  <Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/>
-</Relationships>`;
-
-  const zip = new JSZip();
-  zip.file('[Content_Types].xml', contentTypesXml);
-  zip.file('_rels/.rels', relsXml);
-  zip.file('word/_rels/document.xml.rels', docRelsXml);
-  zip.file('word/styles.xml', stylesXml);
-  zip.file('word/document.xml', documentXml);
-
-  const blob = await zip.generateAsync({
-    type: 'blob',
-    mimeType: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+  // Create standard Word Document with default styles
+  const doc = new Document({
+    styles: {
+      default: {
+        document: {
+          run: {
+            font: 'Calibri',
+            size: 22, // 11pt
+            color: '1E293B',
+          },
+          paragraph: {
+            spacing: {
+              line: 280,
+              after: 120,
+            },
+          },
+        },
+        title: {
+          run: {
+            font: 'Calibri',
+            size: 36, // 18pt
+            bold: true,
+            color: '0F172A',
+          },
+          paragraph: {
+            spacing: {
+              after: 240,
+            },
+          },
+        },
+        heading1: {
+          run: {
+            font: 'Calibri',
+            size: 28, // 14pt
+            bold: true,
+            color: '0F172A',
+          },
+          paragraph: {
+            spacing: {
+              before: 280,
+              after: 140,
+            },
+          },
+        },
+        heading2: {
+          run: {
+            font: 'Calibri',
+            size: 24, // 12pt
+            bold: true,
+            color: '1E293B',
+          },
+          paragraph: {
+            spacing: {
+              before: 220,
+              after: 100,
+            },
+          },
+        },
+        heading3: {
+          run: {
+            font: 'Calibri',
+            size: 22, // 11pt
+            bold: true,
+            color: '334155',
+          },
+          paragraph: {
+            spacing: {
+              before: 180,
+              after: 80,
+            },
+          },
+        },
+      },
+    },
+    sections: [
+      {
+        properties: {
+          page: {
+            margin: {
+              top: 1440,
+              right: 1440,
+              bottom: 1440,
+              left: 1440,
+            },
+          },
+        },
+        children: bodyItems,
+      },
+    ],
   });
 
+  const blob = await Packer.toBlob(doc);
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
   const safeFilename =
