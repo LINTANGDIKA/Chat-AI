@@ -39,14 +39,14 @@ export const ChatMessageItem: React.FC<ChatMessageItemProps> = ({
     if (!markdownRef.current) return;
     const firstLine = cleanContent.split('\n')[0].replace(/^#+\s*/, '').trim();
     const docTitle = firstLine ? firstLine.slice(0, 45) : 'Dokumen Hero AI';
-    exportToWord(markdownRef.current.innerHTML, docTitle);
+    exportToWord(markdownRef.current, docTitle);
   };
 
   const handleExportPdf = () => {
     if (!markdownRef.current) return;
     const firstLine = cleanContent.split('\n')[0].replace(/^#+\s*/, '').trim();
     const docTitle = firstLine ? firstLine.slice(0, 45) : 'Dokumen Hero AI';
-    exportToPdf(markdownRef.current.innerHTML, docTitle);
+    exportToPdf(markdownRef.current, docTitle);
   };
 
   // Clean and sanitize AI text to remove unsightly raw separator artifacts

@@ -1,20 +1,130 @@
 /**
  * Document Export Utility for Hero AI
  * Exports formatted AI messages to PDF and Microsoft Word (.doc)
+ * Featuring native Word Math (OMML) conversion for KaTeX equations.
  */
 
-export function exportToWord(htmlContent: string, title = 'Dokumen Hero AI') {
-  // Strip any internal interactive buttons before exporting
-  const cleanHtml = htmlContent
-    .replace(/<button[\s\S]*?<\/button>/gi, '')
-    .trim();
+import { mml2omml } from 'mathml2omml';
+
+/**
+ * Clean and process DOM/HTML for Microsoft Word export.
+ * Specifically converts KaTeX formulas into native Office Math (OMML) tags (<m:oMath>)
+ * and strips duplicate MathML/LaTeX annotation tags to prevent "RRR" / raw LaTeX bugs.
+ */
+function processHtmlForWord(content: HTMLElement | string): string {
+  let container: HTMLElement;
+
+  if (typeof content === 'string') {
+    if (typeof window !== 'undefined') {
+      const parser = new DOMParser();
+      const doc = parser.parseFromString(content, 'text/html');
+      container = doc.body;
+    } else {
+      return content;
+    }
+  } else {
+    container = content.cloneNode(true) as HTMLElement;
+  }
+
+  // 1. Remove all interactive buttons (copy, export, etc.)
+  container.querySelectorAll('button').forEach((btn) => btn.remove());
+
+  // 2. Convert KaTeX formulas into native Office Math (OMML)
+  const katexNodes = Array.from(container.querySelectorAll('.katex'));
+  for (const katexEl of katexNodes) {
+    try {
+      const isDisplay =
+        katexEl.classList.contains('katex-display') ||
+        !!katexEl.closest('.katex-display');
+
+      const mathEl = katexEl.querySelector('math');
+      if (mathEl) {
+        const mathClone = mathEl.cloneNode(true) as Element;
+        // Strip annotation tag to avoid duplicate raw LaTeX code appearing in Word
+        mathClone.querySelectorAll('annotation').forEach((ann) => ann.remove());
+
+        const mathmlStr = mathClone.outerHTML;
+        const omml = mml2omml(mathmlStr);
+
+        if (omml) {
+          const wrapper = document.createElement('span');
+          wrapper.innerHTML = isDisplay
+            ? `<m:oMathPara>${omml}</m:oMathPara>`
+            : omml;
+
+          const displayParent = katexEl.closest('.katex-display');
+          if (displayParent && displayParent !== katexEl) {
+            displayParent.replaceWith(wrapper);
+          } else {
+            katexEl.replaceWith(wrapper);
+          }
+          continue;
+        }
+      }
+    } catch (err) {
+      console.warn('Hero AI: Failed to convert math to OMML, falling back:', err);
+    }
+
+    // Fallback: If OMML conversion fails, extract ONLY the clean visible text
+    // NEVER leave both .katex-mathml and .katex-html in Word!
+    const katexHtml = katexEl.querySelector('.katex-html');
+    const cleanText = katexHtml
+      ? (katexHtml as HTMLElement).innerText
+      : (katexEl as HTMLElement).innerText;
+
+    const fallbackSpan = document.createElement('span');
+    fallbackSpan.setAttribute(
+      'style',
+      "font-family: 'Cambria Math', 'Cambria', serif; font-style: italic;"
+    );
+    fallbackSpan.textContent = cleanText || '';
+
+    const displayParent = katexEl.closest('.katex-display');
+    if (displayParent && displayParent !== katexEl) {
+      displayParent.replaceWith(fallbackSpan);
+    } else {
+      katexEl.replaceWith(fallbackSpan);
+    }
+  }
+
+  return container.innerHTML;
+}
+
+/**
+ * Clean and process DOM/HTML for PDF print export.
+ */
+function processHtmlForPdf(content: HTMLElement | string): string {
+  let container: HTMLElement;
+
+  if (typeof content === 'string') {
+    if (typeof window !== 'undefined') {
+      const parser = new DOMParser();
+      const doc = parser.parseFromString(content, 'text/html');
+      container = doc.body;
+    } else {
+      return content;
+    }
+  } else {
+    container = content.cloneNode(true) as HTMLElement;
+  }
+
+  // Remove interactive buttons
+  container.querySelectorAll('button').forEach((b) => b.remove());
+  return container.innerHTML;
+}
+
+export function exportToWord(content: HTMLElement | string, title = 'Dokumen Hero AI') {
+  const cleanHtml = processHtmlForWord(content);
 
   const formattedDate = new Date().toLocaleDateString('id-ID', {
     dateStyle: 'full',
   });
 
   const wordHtml = `<!DOCTYPE html>
-<html xmlns:o='urn:schemas-microsoft-com:office:office' xmlns:w='urn:schemas-microsoft-com:office:word' xmlns='http://www.w3.org/TR/REC-html40'>
+<html xmlns:o='urn:schemas-microsoft-com:office:office'
+      xmlns:w='urn:schemas-microsoft-com:office:word'
+      xmlns:m='http://schemas.openxmlformats.org/officeDocument/2006/math'
+      xmlns='http://www.w3.org/TR/REC-html40'>
 <head>
   <meta charset='utf-8'>
   <title>${title}</title>
@@ -37,6 +147,9 @@ export function exportToWord(htmlContent: string, title = 'Dokumen Hero AI') {
       font-size: 11pt;
       line-height: 1.6;
       color: #1e293b;
+    }
+    m\\:oMath, m\\:oMathPara {
+      font-family: 'Cambria Math', 'Cambria', serif;
     }
     .doc-header {
       border-bottom: 2pt solid #7c3aed;
@@ -164,10 +277,8 @@ export function exportToWord(htmlContent: string, title = 'Dokumen Hero AI') {
   URL.revokeObjectURL(url);
 }
 
-export function exportToPdf(htmlContent: string, title = 'Dokumen Hero AI') {
-  const cleanHtml = htmlContent
-    .replace(/<button[\s\S]*?<\/button>/gi, '')
-    .trim();
+export function exportToPdf(content: HTMLElement | string, title = 'Dokumen Hero AI') {
+  const cleanHtml = processHtmlForPdf(content);
 
   const formattedDate = new Date().toLocaleDateString('id-ID', {
     dateStyle: 'full',
@@ -184,7 +295,7 @@ export function exportToPdf(htmlContent: string, title = 'Dokumen Hero AI') {
 <head>
   <meta charset="utf-8">
   <title>${title}</title>
-  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.8/dist/katex.min.css">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.css">
   <style>
     @page {
       size: A4 portrait;
@@ -316,7 +427,7 @@ export function exportToPdf(htmlContent: string, title = 'Dokumen Hero AI') {
     window.onload = function() {
       setTimeout(function() {
         window.print();
-      }, 400);
+      }, 500);
     };
   </script>
 </body>
