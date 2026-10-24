@@ -51,11 +51,11 @@ export const ChatMessageItem: React.FC<ChatMessageItemProps> = ({
     }
   };
 
-  const handleExportWord = () => {
+  const handleExportWord = async () => {
     if (!markdownRef.current) return;
     const firstLine = cleanContent.split('\n')[0].replace(/^#+\s*/, '').trim();
     const docTitle = firstLine ? firstLine.slice(0, 45) : 'Dokumen Hero AI';
-    exportToWord(markdownRef.current, docTitle);
+    await exportToWord(markdownRef.current, docTitle);
   };
 
   const handleExportPdf = () => {
@@ -220,10 +220,10 @@ export const ChatMessageItem: React.FC<ChatMessageItemProps> = ({
                 <button
                   onClick={handleExportWord}
                   className="flex items-center gap-1 text-[var(--text-muted)] hover:text-[var(--accent-cyan)] transition-colors cursor-pointer px-1.5 py-0.5 rounded hover:bg-[var(--bg-surface-hover)]"
-                  title="Unduh sebagai dokumen Word (.doc)"
+                  title="Unduh sebagai dokumen resmi Word (.docx) dengan rumus matematika aktif"
                 >
                   <FileText className="w-3.5 h-3.5 text-[var(--accent-cyan)]" />
-                  <span className="hidden sm:inline">Word</span>
+                  <span className="hidden sm:inline">Word (.docx)</span>
                 </button>
 
                 <button
@@ -309,10 +309,10 @@ export const ChatMessageItem: React.FC<ChatMessageItemProps> = ({
               <button
                 onClick={handleExportWord}
                 className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-[var(--bg-surface-active)] hover:bg-[var(--bg-surface-hover)] border border-[var(--border-color)] text-[var(--text-primary)] hover:text-[var(--accent-cyan)] transition-colors cursor-pointer text-[11px] font-medium shadow-2xs"
-                title="Unduh sebagai dokumen Word (.doc)"
+                title="Unduh sebagai dokumen resmi Word (.docx) dengan rumus matematika aktif"
               >
                 <FileText className="w-3.5 h-3.5 text-[var(--accent-cyan)]" />
-                <span>Word (.doc)</span>
+                <span>Word (.docx)</span>
               </button>
               <button
                 onClick={handleExportPdf}

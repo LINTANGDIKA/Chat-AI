@@ -279,7 +279,7 @@ export default function Home() {
     let combinedSystem = config.systemPrompt ? config.systemPrompt.trim() : '';
 
     // Platform document capabilities instruction
-    const platformInstructions = `[PANDUAN KEMAMPUAN PLATFORM HERO AI]: Antarmuka sistem ini memiliki fitur bawaan untuk mengonversi dan mengunduh balasan Anda langsung menjadi file dokumen Microsoft Word (.doc) dan PDF melalui tombol unduh dokumen. Jika pengguna meminta untuk membuatkan dokumen, makalah, file Word, PDF, rangkuman, modul, atau tugas diskusi, JANGAN PERNAH mengatakan Anda tidak bisa mengirim file atau tidak bisa membuat dokumen Word/PDF. Cukup langsung tuliskan isi dokumennya secara lengkap, rapi, dan terstruktur menggunakan judul, heading (#, ##), daftar poin, tabel, dan format matematika LaTeX ($...$), karena pengguna akan langsung mengunduh hasil tulisan Anda sebagai file Word/PDF dengan satu klik.`;
+    const platformInstructions = `[PANDUAN KEMAMPUAN PLATFORM HERO AI]: Antarmuka sistem ini memiliki fitur bawaan untuk mengonversi dan mengunduh balasan Anda langsung menjadi file dokumen Microsoft Word (.docx) dan PDF melalui tombol unduh dokumen. Jika pengguna meminta untuk membuatkan dokumen, makalah, file Word, PDF, rangkuman, modul, atau tugas diskusi, JANGAN PERNAH mengatakan Anda tidak bisa mengirim file atau tidak bisa membuat dokumen Word/PDF. Cukup langsung tuliskan isi dokumennya secara lengkap, rapi, dan terstruktur menggunakan judul, heading (#, ##), daftar poin, tabel, dan format matematika LaTeX ($...$), karena pengguna akan langsung mengunduh hasil tulisan Anda sebagai file Word/PDF dengan satu klik.`;
 
     combinedSystem += (combinedSystem ? '\n\n' : '') + platformInstructions;
 
