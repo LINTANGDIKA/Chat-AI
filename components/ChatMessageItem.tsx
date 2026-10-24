@@ -16,6 +16,22 @@ interface ChatMessageItemProps {
   isStreaming?: boolean;
 }
 
+// Custom plugin to disable 4-space indented code blocks so indented paragraphs and equations don't accidentally turn into raw code boxes
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function remarkDisableIndentedCode(this: any) {
+  const data = this.data();
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  function add(field: string, value: any) {
+    const list = data[field] ? data[field] : (data[field] = []);
+    list.push(value);
+  }
+  add('micromarkExtensions', {
+    disable: {
+      null: ['codeIndented'],
+    },
+  });
+}
+
 export const ChatMessageItem: React.FC<ChatMessageItemProps> = ({
   message,
   modelName,
@@ -244,7 +260,7 @@ export const ChatMessageItem: React.FC<ChatMessageItemProps> = ({
           <div ref={markdownRef} className="markdown-body">
             {cleanContent ? (
               <ReactMarkdown
-                remarkPlugins={[remarkGfm, remarkMath]}
+                remarkPlugins={[remarkDisableIndentedCode, remarkGfm, remarkMath]}
                 rehypePlugins={[rehypeKatex]}
                 components={{
                   hr: () => (
