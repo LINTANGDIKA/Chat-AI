@@ -8,8 +8,10 @@ import rehypeKatex from 'rehype-katex';
 import { ChatMessage } from '@/lib/types';
 import { CodeBlock } from './CodeBlock';
 import { TimeoutHtmlView } from './TimeoutHtmlView';
+import { ProjectFilesCard } from './ProjectFilesCard';
 import { exportToWord, exportToPdf } from '@/lib/exportDoc';
-import { Bot, User, Copy, Check, FileText, Printer, FileDown } from 'lucide-react';
+import { extractProjectFiles, exportProjectToZip } from '@/lib/exportZip';
+import { Bot, User, Copy, Check, FileText, Printer, FileDown, Archive } from 'lucide-react';
 
 interface ChatMessageItemProps {
   message: ChatMessage;
@@ -64,6 +66,19 @@ export const ChatMessageItem: React.FC<ChatMessageItemProps> = ({
     const firstLine = cleanContent.split('\n')[0].replace(/^#+\s*/, '').trim();
     const docTitle = firstLine ? firstLine.slice(0, 45) : 'Dokumen Hero AI';
     exportToPdf(markdownRef.current, docTitle);
+  };
+
+  // Extract structured project files from the message if available
+  const projectFiles = React.useMemo(() => {
+    if (isUser || !message.content) return [];
+    return extractProjectFiles(message.content);
+  }, [message.content, isUser]);
+
+  const handleExportZip = async () => {
+    if (projectFiles.length === 0) return;
+    const firstLine = cleanContent.split('\n')[0].replace(/^#+\s*/, '').trim();
+    const projectTitle = firstLine ? firstLine.slice(0, 30) : 'proyek-hero-ai';
+    await exportProjectToZip(projectFiles, projectTitle);
   };
 
   // Clean and sanitize AI text to remove unsightly raw separator artifacts
@@ -245,6 +260,17 @@ export const ChatMessageItem: React.FC<ChatMessageItemProps> = ({
 
             {!isStreaming && (
               <div className="opacity-80 hover:opacity-100 transition-opacity flex items-center gap-1.5 text-[11px]">
+                {projectFiles.length > 0 && (
+                  <button
+                    onClick={handleExportZip}
+                    className="flex items-center gap-1 text-[var(--accent)] hover:text-[var(--accent-cyan)] transition-colors cursor-pointer px-1.5 py-0.5 rounded hover:bg-[var(--bg-surface-hover)] font-medium"
+                    title={`Unduh ${projectFiles.length} berkas proyek sebagai arsip .zip`}
+                  >
+                    <Archive className="w-3.5 h-3.5 text-[var(--accent)]" />
+                    <span className="hidden sm:inline">Project (.zip)</span>
+                  </button>
+                )}
+
                 <button
                   onClick={handleExportWord}
                   className="flex items-center gap-1 text-[var(--text-muted)] hover:text-[var(--accent-cyan)] transition-colors cursor-pointer px-1.5 py-0.5 rounded hover:bg-[var(--bg-surface-hover)]"
@@ -335,6 +361,14 @@ export const ChatMessageItem: React.FC<ChatMessageItemProps> = ({
             )}
           </div>
 
+          {/* Structured Project Files Card if multi-file code is detected */}
+          {!isStreaming && projectFiles.length > 0 && (
+            <ProjectFilesCard
+              files={projectFiles}
+              projectTitle={cleanContent.split('\n')[0].replace(/^#+\s*/, '').slice(0, 30) || 'proyek-hero-ai'}
+            />
+          )}
+
           {/* Dedicated Bottom Toolbar for Document Download & Copy */}
           {!isStreaming && cleanContent && (
             <div className="pt-2.5 mt-2 flex flex-wrap items-center gap-2 border-t border-[var(--border-subtle)] text-xs select-none">
@@ -357,6 +391,21 @@ export const ChatMessageItem: React.FC<ChatMessageItemProps> = ({
                 <Printer className="w-3.5 h-3.5 text-[var(--accent-red)]" />
                 <span>PDF</span>
               </button>
+
+              {projectFiles.length > 0 && (
+                <button
+                  onClick={handleExportZip}
+                  className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-[var(--accent)]/15 hover:bg-[var(--accent)]/25 border border-[var(--accent)]/30 text-[var(--accent)] transition-colors cursor-pointer text-[11px] font-semibold shadow-2xs"
+                  title="Unduh seluruh struktur file proyek dalam satu berkas .zip"
+                >
+                  <Archive className="w-3.5 h-3.5 text-[var(--accent)]" />
+                  <span>Project (.zip)</span>
+                  <span className="px-1.5 py-0.2 rounded-full bg-[var(--accent)]/20 text-[10px] font-mono">
+                    {projectFiles.length} file
+                  </span>
+                </button>
+              )}
+
               <button
                 onClick={handleCopyAll}
                 className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-[var(--bg-surface-active)] hover:bg-[var(--bg-surface-hover)] border border-[var(--border-color)] text-[var(--text-primary)] transition-colors cursor-pointer text-[11px] font-medium ml-auto shadow-2xs"

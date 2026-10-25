@@ -278,8 +278,10 @@ export default function Home() {
     // Combine system prompt and long-term memory
     let combinedSystem = config.systemPrompt ? config.systemPrompt.trim() : '';
 
-    // Platform document capabilities instruction
-    const platformInstructions = `[PANDUAN KEMAMPUAN PLATFORM HERO AI]: Antarmuka sistem ini memiliki fitur bawaan untuk mengonversi dan mengunduh balasan Anda langsung menjadi file dokumen Microsoft Word (.docx) dan PDF melalui tombol unduh dokumen. Jika pengguna meminta untuk membuatkan dokumen, makalah, file Word, PDF, rangkuman, modul, atau tugas diskusi, JANGAN PERNAH mengatakan Anda tidak bisa mengirim file atau tidak bisa membuat dokumen Word/PDF. Cukup langsung tuliskan isi dokumennya secara lengkap, rapi, dan terstruktur menggunakan judul, heading (#, ##), daftar poin, tabel, dan format matematika LaTeX ($...$), karena pengguna akan langsung mengunduh hasil tulisan Anda sebagai file Word/PDF dengan satu klik.`;
+    // Platform document & project bundling capabilities instruction
+    const platformInstructions = `[PANDUAN KEMAMPUAN PLATFORM HERO AI]:
+1. FITUR DOKUMEN: Antarmuka sistem ini memiliki fitur bawaan untuk mengonversi dan mengunduh balasan Anda langsung menjadi file dokumen Microsoft Word (.docx) dan PDF melalui tombol unduh dokumen. Jika pengguna meminta untuk membuatkan dokumen, makalah, file Word, PDF, rangkuman, modul, atau tugas diskusi, JANGAN PERNAH mengatakan Anda tidak bisa mengirim file atau tidak bisa membuat dokumen Word/PDF. Cukup langsung tuliskan isi dokumennya secara lengkap, rapi, dan terstruktur menggunakan judul, heading (#, ##), daftar poin, tabel, dan format matematika LaTeX ($...$), karena pengguna akan langsung mengunduh hasil tulisan Anda sebagai file Word/PDF dengan satu klik.
+2. FITUR PROYEK APLIKASI & ZIP: Antarmuka sistem ini memiliki fitur bawaan yang otomatis mendeteksi dan membundel seluruh berkas kode proyek aplikasi (Next.js, React, HTML/CSS/JS, Python, dll) menjadi arsip .zip yang siap diunduh dan dijalankan. Ketika pengguna meminta dibuatkan aplikasi/website/proyek atau beberapa berkas kode, SELALU tuliskan path berkas yang jelas tepat sebelum blok kode (misalnya \`### \`path/nama-file.ext\`\` atau \`\`\`language filename="path/nama-file.ext"\`\`\`) agar sistem dapat langsung mengekstrak semua berkas tersebut ke struktur folder proyek .zip yang rapi.`;
 
     combinedSystem += (combinedSystem ? '\n\n' : '') + platformInstructions;
 
